@@ -204,10 +204,11 @@ static int build_tree(IndexEntry *entries, int count, ObjectID *id_out) {
     return 0;
 }
 
-// Entry point
+
+
 int tree_from_index(ObjectID *id_out) {
     Index idx;
-    index_load(&idx);
+    if (index_load(&idx) != 0) return -1;
 
     Tree tree;
     tree.count = 0;
@@ -216,21 +217,29 @@ int tree_from_index(ObjectID *id_out) {
         IndexEntry *e = &idx.entries[i];
 
         TreeEntry *t = &tree.entries[tree.count++];
+
         t->mode = e->mode;
-        strcpy(t->name, e->path);
+        strncpy(t->name, e->path, sizeof(t->name) - 1);
+        t->name[sizeof(t->name) - 1] = '\0';
+
         memcpy(t->hash.hash, e->hash.hash, HASH_SIZE);
     }
 
     void *data;
     size_t len;
 
-    tree_serialize(&tree, &data, &len);
+    if (tree_serialize(&tree, &data, &len) != 0)
+        return -1;
 
     ObjectID tree_id;
-    object_write(OBJ_TREE, data, len, &tree_id);
+
+    if (object_write(OBJ_TREE, data, len, &tree_id) != 0) {
+        free(data);
+        return -1;
+    }
 
     free(data);
-    *id_out = tree_id;
 
+    *id_out = tree_id;
     return 0;
 }
