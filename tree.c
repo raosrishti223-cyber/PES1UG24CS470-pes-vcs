@@ -207,13 +207,30 @@ static int build_tree(IndexEntry *entries, int count, ObjectID *id_out) {
 // Entry point
 int tree_from_index(ObjectID *id_out) {
     Index idx;
+    index_load(&idx);
 
-    if (index_load(&idx) != 0)
-        return -1;
+    Tree tree;
+    tree.count = 0;
 
-    // 🔥 CRITICAL FIX: sort before building tree
-    qsort(idx.entries, idx.count,
-          sizeof(IndexEntry), compare_index_entries);
+    for (int i = 0; i < idx.count; i++) {
+        IndexEntry *e = &idx.entries[i];
 
-    return build_tree(idx.entries, idx.count, id_out);
+        TreeEntry *t = &tree.entries[tree.count++];
+        t->mode = e->mode;
+        strcpy(t->name, e->path);
+        memcpy(t->hash.hash, e->hash.hash, HASH_SIZE);
+    }
+
+    void *data;
+    size_t len;
+
+    tree_serialize(&tree, &data, &len);
+
+    ObjectID tree_id;
+    object_write(OBJ_TREE, data, len, &tree_id);
+
+    free(data);
+    *id_out = tree_id;
+
+    return 0;
 }
